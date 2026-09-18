@@ -84,6 +84,37 @@ tests:
       server.drivers.kubernetes.workspaceMode: managed
       server.credentialDrivers.kubernetesSecrets.enabled: true
     asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "create", "patch", "delete"]
+
+  - it: restricts operator TLS sync to the configured secret
+    set:
+      server.drivers.kubernetes.workspaceMode: operator
+      server.tls.clientTlsSecretName: custom-client-tls
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            resourceNames: ["custom-client-tls"]
+            verbs: ["get", "patch"]
+
+  - it: grants operator bootstrap Secret lifecycle access without credential storage
+    set:
+      server.drivers.kubernetes.workspaceMode: operator
+      server.disableTls: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["create", "get", "list", "delete"]
       - notContains:
           path: rules
           content:
@@ -115,7 +146,35 @@ tests:
           content:
             apiGroups: [""]
             resources: ["secrets"]
-            verbs: ["create", "delete"]
+            resourceNames: ["custom-client-tls", "registry-one", "registry-two"]
+            verbs: ["get", "patch"]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["create", "get", "list", "delete"]
+
+  - it: restricts managed copies to image-pull secrets when TLS is disabled
+    set:
+      server.drivers.kubernetes.workspaceMode: managed
+      server.disableTls: true
+      server.sandboxImagePullSecrets:
+        - name: registry-one
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            resourceNames: ["registry-one"]
+            verbs: ["get", "patch"]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["create", "get", "list", "delete"]
 
   - it: omits secrets rule entirely in shared mode
     set:
@@ -145,7 +204,7 @@ tests:
           content:
             apiGroups: [""]
             resources: ["secrets"]
-            verbs: ["create", "delete"]
+            verbs: ["create", "get", "list", "delete"]
 
   - it: grants operator sandbox-runtime companion permissions
     set:
@@ -163,3 +222,9 @@ tests:
             apiGroups: [""]
             resources: ["services"]
             verbs: ["create", "get"]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["create", "get", "list", "delete"]

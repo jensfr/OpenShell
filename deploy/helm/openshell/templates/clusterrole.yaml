@@ -55,6 +55,9 @@ rules:
       - delete
       {{- end }}
   {{- if ne $workspaceMode "shared" }}
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
   # Cluster-wide sandbox CRD access for managed/operator workspace modes.
   - apiGroups:
       - agents.x-k8s.io
@@ -93,6 +96,10 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    # Registration reads bootstrap material; stop/rollback lists and deletes it.
+    verbs: ["create", "get", "list", "delete"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["create", "get"]

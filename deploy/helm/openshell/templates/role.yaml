@@ -16,6 +16,9 @@ rules:
     resources: ["persistentvolumeclaims"]
     verbs: ["get"]
   {{- end }}
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
   - apiGroups:
       - agents.x-k8s.io
     resources:
@@ -59,9 +62,8 @@ rules:
     verbs: ["create", "get"]
   - apiGroups: [""]
     resources: ["secrets"]
-    # Bootstrap Secrets are generation-scoped. Recovery deletes them by exact
-    # name.
-    verbs: ["create", "delete"]
+    # Registration reads bootstrap material; stop/rollback lists and deletes it.
+    verbs: ["create", "get", "list", "delete"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["create", "get"]
