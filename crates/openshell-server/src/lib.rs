@@ -597,7 +597,7 @@ pub(crate) async fn run_server(
                     &public_pem,
                     kid,
                     &jwt.gateway_id,
-                    jwt.sandbox_token_ttl().unwrap_or(Duration::from_mins(15)),
+                    jwt.sandbox_token_ttl(),
                 )
                 .map_err(Error::config)?,
             );
