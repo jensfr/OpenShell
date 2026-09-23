@@ -41,40 +41,12 @@ network_middlewares: { ... } # Additional traffic processing.
 Refer to the [Policy Schema Reference](/reference/policy-schema) for every
 accepted field.
 
-## Understand Policy Sources
+## Apply Policy Changes
 
 Every sandbox runs under a policy, but you do not have to supply a policy file
-when creating one. OpenShell selects a policy from its configured sources,
-falling back to its restrictive default when no other source supplies one.
-
-The base policy is the policy configured for the sandbox. The effective policy
-includes rules contributed by attached providers, unless a gateway-global policy
-replaces normal sandbox and provider selection.
-
-The gateway selects one policy source and, when allowed, adds rules from
-attached providers:
-
-```mermaid
-flowchart TD
-    A["Gateway-global policy configured?"] -->|Yes| B["Use the gateway-global policy"]
-    A -->|No| C["Saved sandbox policy available?"]
-    C -->|Yes| D["Add rules from attached providers"]
-    C -->|No| E["Look for a policy in the image"]
-    E -->|Valid| D
-    E -->|Missing| F["Use the default restrictive policy"]
-    E -->|Invalid| G["Wait for a repaired policy<br/>before starting the workload"]
-    F --> D
-    B --> H["Validate permissions<br/>and credential access"]
-    D --> H
-    H --> I["Make the configuration active"]
-```
-
-At creation, an explicit `--policy` file takes precedence over
-`OPENSHELL_SANDBOX_POLICY`. OpenShell looks inside the image only when the sandbox
-has no saved policy. A gateway-global policy replaces
-normal sandbox policy selection and prevents provider rules from being added.
-
-## Apply Policy Changes
+when creating one. OpenShell uses an existing policy or falls back to its
+restrictive default. See [How OpenShell Selects a Policy](#how-openshell-selects-a-policy)
+for the selection order.
 
 You can update network rules while a sandbox is running. Changes to filesystem
 permissions and process identity require recreating the sandbox to take effect.
@@ -93,9 +65,11 @@ configuration:
 
 ### Inspect the Current Policy
 
-The base and effective views show the result of policy selection. The base view
-excludes provider-contributed rules, making it the starting point for sandbox
-policy edits. The effective view includes permissions from all selected sources.
+The base policy is the policy configured for the sandbox. Attached providers can
+contribute additional network rules; the effective policy includes those rules
+alongside the base policy. Start sandbox policy edits from the base view so you
+do not copy provider-owned rules into your configuration.
+
 In the command examples, replace `my-sandbox` with the name of your sandbox:
 
 ```shell
@@ -245,6 +219,25 @@ A no-op update may create no new revision. If validation fails, the effect on
 existing access depends on the failure stage and the configured runtime failure
 mode. [Troubleshoot Sandbox Policies](/sandboxes/troubleshoot-policies) explains
 how to identify that stage and repair the configuration.
+
+## How OpenShell Selects a Policy
+
+When more than one policy is available, OpenShell uses the first applicable
+policy in this order:
+
+1. A gateway-global policy set by an administrator.
+2. The sandbox's saved policy. At creation, `--policy` takes precedence over
+   `OPENSHELL_SANDBOX_POLICY`; subsequent policy changes update the saved policy.
+3. A policy included in the sandbox image.
+4. OpenShell's [restrictive default policy](/reference/default-policy).
+
+OpenShell then adds network rules from attached providers, unless a
+gateway-global policy is active. A global policy replaces the sandbox's policy
+and suppresses provider-added rules, as described below.
+
+An invalid image policy must be repaired before the workload can start;
+OpenShell does not skip it and use the default. See
+[Troubleshoot Sandbox Policies](/sandboxes/troubleshoot-policies) for repair guidance.
 
 ## Global Policy Override
 
