@@ -13,6 +13,12 @@ position: 4
 middleware sections. Use `policy set` with an exported base policy for those
 broader changes.
 
+This reference describes the command's flags, input formats, and update
+behavior. For the policy lifecycle and editing workflow, see
+[Configure Sandbox Policies](/sandboxes/policies). Examples use `my-sandbox`
+for an existing sandbox; adapt rule names, executable paths, and destinations
+to its current base policy.
+
 ## Command Flags
 
 One command can contain several compatible operations. The gateway applies the
@@ -63,22 +69,30 @@ Endpoint options are:
 | `websocket-credential-rewrite` | Rewrite supported placeholders in client WebSocket text messages on REST compatibility or WebSocket endpoints. |
 | `allow-uninspected-credentials` | Accept the security-sensitive exposure of provider credentials on an uninspected traffic path. |
 
-Examples:
+Read-only HTTP access for curl:
 
 ```shell
-openshell policy update demo \
+openshell policy update my-sandbox \
   --rule-name github_readonly \
   --binary /usr/bin/curl \
   --add-endpoint api.github.com:443:read-only:rest:enforce \
   --wait
+```
 
-openshell policy update demo \
+Native PostgreSQL access for psql:
+
+```shell
+openshell policy update my-sandbox \
   --rule-name postgres \
   --binary /usr/bin/psql \
   --add-endpoint db.internal.example:5432::tcp \
   --wait
+```
 
-openshell policy update demo \
+Read-only access to an internal HTTP API with an explicit destination IP allowance:
+
+```shell
+openshell policy update my-sandbox \
   --rule-name private_api \
   --binary /usr/bin/curl \
   --add-endpoint 'api.internal.example:443:read-only:rest:enforce:allowed-ip=10.20.0.0/16' \
@@ -111,27 +125,35 @@ Quote specifications that contain `*`, `**`, `?`, or bracket classes. Request
 path globs are not shell path globs. Both `*` and `**` can cross `/` boundaries,
 `?` matches one character, and bracket classes are supported.
 
-Add a REST allow and deny:
+The following examples target an existing `github_api` rule whose only binary
+is `/usr/bin/gh` and whose REST endpoint is `api.github.com:443`. An allow append
+permits POST requests to issue-creation paths:
 
 ```shell
-openshell policy update demo \
+openshell policy update my-sandbox \
   --rule-name github_api \
   --binary /usr/bin/gh \
   --add-allow 'api.github.com:443:POST:/repos/*/issues' \
   --wait
+```
 
-openshell policy update demo \
+A deny append blocks POST requests to administration paths on that endpoint:
+
+```shell
+openshell policy update my-sandbox \
   --rule-name github_api \
   --binary /usr/bin/gh \
   --add-deny 'api.github.com:443:POST:/admin/**' \
   --wait
 ```
 
-Add a client WebSocket text-message deny. The path matches the stored upgrade
-request path, not message content:
+For an existing `realtime` rule with only `/usr/bin/node` and a WebSocket
+endpoint at `realtime.example.com:443`, a text-message deny uses the
+`WEBSOCKET_TEXT` method. The path matches the stored upgrade request path, not
+message content:
 
 ```shell
-openshell policy update demo \
+openshell policy update my-sandbox \
   --rule-name realtime \
   --binary /usr/bin/node \
   --add-deny 'realtime.example.com:443:WEBSOCKET_TEXT:/v1/admin/**' \
@@ -168,7 +190,7 @@ when the stored rule actually has an empty binary list.
 Inspect the stored base before composing an append:
 
 ```shell
-openshell policy get demo --base
+openshell policy get my-sandbox --base
 ```
 
 Copy the rule name, binary paths, endpoint path, and complete port set from that
@@ -188,15 +210,19 @@ scoped by `--rule-name`. It removes the matching host and port from every
 authored network rule:
 
 ```shell
-openshell policy update demo \
+openshell policy update my-sandbox \
   --remove-endpoint api.example.com:443 \
   --dry-run
 
-openshell policy update demo \
+openshell policy update my-sandbox \
   --remove-endpoint api.example.com:443 \
   --wait
+```
 
-openshell policy update demo \
+To remove one named rule instead:
+
+```shell
+openshell policy update my-sandbox \
   --remove-rule github_readonly \
   --wait
 ```
@@ -209,10 +235,12 @@ specific map entry, and inspect the resulting base policy after either command.
 
 ## Preview a Merge
 
-Use `--dry-run` to review the merged document:
+`--dry-run` shows the proposed policy without saving it. For example, this
+command previews a request-rule change to an existing `github_api` rule with
+only `/usr/bin/gh` and a REST endpoint at `api.github.com:443`:
 
 ```shell
-openshell policy update demo \
+openshell policy update my-sandbox \
   --rule-name github_api \
   --binary /usr/bin/gh \
   --add-allow 'api.github.com:443:GET:/repos/**' \
@@ -254,8 +282,8 @@ zero exit can represent a loaded revision, a no-op, or a revision superseded by
 another update. Always inspect current state before relying on the change:
 
 ```shell
-openshell policy list demo
-openshell policy get demo --full
+openshell policy list my-sandbox
+openshell policy get my-sandbox --full
 ```
 
 A wait timeout means the CLI stopped polling. It does not establish whether the
@@ -264,10 +292,10 @@ before resubmitting, because an automatic retry can race with a late result.
 
 ## Full Replacement
 
-Use `policy set` for middleware changes, advanced protocol shapes, or complete
+`openshell policy set` handles middleware changes, advanced protocol shapes, and complete
 replacement. Start from the current base and preserve sections you do not intend
-to change. Follow [Inspect and Replace a
-Policy](/sandboxes/policies#inspect-and-replace-a-policy) to prepare an editable
+to change. Follow [Replace the
+Policy](/sandboxes/policies#replace-the-policy) to prepare an editable
 YAML file using the CLI's readable output.
 
 For automation, the following alternative uses `jq` on the host to extract the
@@ -275,17 +303,17 @@ base policy without display metadata or provider-owned rules:
 
 ```shell
 set -o pipefail
-openshell policy get demo --base --output json \
-  | jq -e '.policy' > demo-base.json
+openshell policy get my-sandbox --base --output json \
+  | jq -e '.policy' > base-policy.json
 ```
 
-Edit `demo-base.json`, then submit the complete policy:
+Edit `base-policy.json`, then submit the complete policy:
 
 ```shell
-openshell policy set demo --policy demo-base.json --wait
+openshell policy set my-sandbox --policy base-policy.json --wait
 ```
 
-Refer to [Configure Sandbox Policies](/sandboxes/policies#inspect-and-replace-a-policy)
+Refer to [Inspect the Current Policy](/sandboxes/policies#inspect-the-current-policy)
 for effective export, and use
 [Troubleshoot Sandbox Policies](/sandboxes/troubleshoot-policies) when submission
 and activation results differ.

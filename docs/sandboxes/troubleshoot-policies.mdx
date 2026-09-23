@@ -8,20 +8,22 @@ keywords: "Generative AI, Cybersecurity, Policy, Troubleshooting, Sandbox, Valid
 position: 8
 ---
 
-Policy failures can occur before submission, during gateway validation, during
-runtime activation, or while processing a connection or request. Identify the
-stage before changing permissions. A broader network grant does not repair a credential,
-middleware, executable, or startup problem.
+Policy failures can occur while submitting a change, activating it, or processing
+traffic. The sandbox's state, policy history, and logs help identify which stage
+failed and whether the previous policy is still active. Start with that evidence
+before changing permissions.
 
 ## Identify the Failure Stage
 
-Start with sandbox state, policy revisions, effective policy, and sandbox logs:
+The following OpenShell CLI commands show the information needed to locate a
+failure. Replace `my-sandbox` with the affected sandbox's name, then use the table
+to find the relevant diagnosis:
 
 ```shell
-openshell sandbox get demo
-openshell policy list demo
-openshell policy get demo --full
-openshell logs demo --since 10m --source sandbox
+openshell sandbox get my-sandbox
+openshell policy list my-sandbox
+openshell policy get my-sandbox --full
+openshell logs my-sandbox --since 10m --source sandbox
 ```
 
 Use what you observe and the latest revision status to locate the failure.
@@ -55,7 +57,7 @@ failures do not extend it.
 Inspect the diagnostic:
 
 ```shell
-openshell sandbox get demo --output json
+openshell sandbox get my-sandbox --output json
 ```
 
 Repair the complete policy or the conflicting provider configuration. A
@@ -68,8 +70,8 @@ retains the sandbox record and diagnostic. Repair the configuration, wait for
 cleanup, then start it explicitly:
 
 ```shell
-openshell sandbox get demo --output json
-openshell sandbox start demo
+openshell sandbox get my-sandbox --output json
+openshell sandbox start my-sandbox
 ```
 
 A start retry receives a new 300-second window. Editing configuration after
@@ -82,8 +84,8 @@ network access and closes connections that used the previously active
 configuration. Submit a valid replacement, wait, and verify the active revision:
 
 ```shell
-openshell policy set demo --policy repaired-policy.yaml --wait
-openshell policy list demo
+openshell policy set my-sandbox --policy repaired-policy.yaml --wait
+openshell policy list my-sandbox
 ```
 
 With `retain_last_valid`, a previous valid configuration remains active. Do not
@@ -111,7 +113,7 @@ Use canonical executable paths. Resolve symlinks inside the sandbox when the
 logged path differs from the policy:
 
 ```shell
-openshell sandbox exec -n demo --no-login-shell -- \
+openshell sandbox exec -n my-sandbox --no-login-shell -- \
   readlink -f /usr/bin/curl
 ```
 
@@ -137,8 +139,8 @@ non-default port in an absolute-form URL or `Host` authority must match the
 transport destination. OpenShell rejects authority mismatches even when the
 endpoint otherwise permits the method and path.
 
-Check that blocking examples use `enforcement: enforce`. Omitted enforcement is
-audit mode. Audit forwards an applicable request-rule violation after logging
+Check that rules intended to block requests use `enforcement: enforce`.
+Omitted enforcement is audit mode. Audit forwards an applicable request-rule violation after logging
 it, but it does not bypass parsing, destination, credentials, middleware, or
 other independent checks.
 
@@ -190,32 +192,31 @@ covers selected client text messages, not binary or upstream-to-client frames.
 Refer to [Supervisor Middleware](/extensibility/supervisor-middleware) for
 registration, transport, mutation, limit, and observability details.
 
-## Diagnose Tutorial Environment Failures
+## Check the Client Environment
 
-The first-policy tutorial expects `/usr/bin/curl`, CA certificates, a long-lived
-main process, a local Docker-visible image, no attached providers, and no global
-override. Verify each prerequisite before treating request failure as a policy
-denial:
+A missing executable or TLS trust store can cause a request to fail before
+OpenShell evaluates the intended operation. Confirm the sandbox is running and
+contains the required client. For a sandbox using curl with the standard Ubuntu
+certificate bundle, these commands check the executable and trust store:
 
 ```shell
-openshell sandbox exec -n demo --no-login-shell -- test -x /usr/bin/curl
-openshell sandbox exec -n demo --no-login-shell -- \
+openshell sandbox exec -n my-sandbox --no-login-shell -- test -x /usr/bin/curl
+openshell sandbox exec -n my-sandbox --no-login-shell -- \
   test -r /etc/ssl/certs/ca-certificates.crt
-openshell policy get demo --full --output json \
-  | jq '.policy.network_policies // {}'
 ```
 
-Use `openshell logs demo --since 5m --source sandbox` for policy events. A WARN
+Compare the client error with a fresh event from
+`openshell logs my-sandbox --since 5m --source sandbox`. A WARN
 minimum level excludes OCSF entries because log filtering treats them as INFO,
 regardless of their event severity.
 
 ## Restore an Earlier Base Revision
 
-Inspect the compatible historical base you want to restore. For example, to
-retrieve revision 2:
+Choose a compatible revision from `openshell policy list my-sandbox`, then inspect its
+base policy. For example, to retrieve revision 2:
 
 ```shell
-openshell policy get demo --rev 2 --base
+openshell policy get my-sandbox --rev 2 --base
 ```
 
 Copy the YAML below the `---` separator into `previous-base.yaml`, excluding
@@ -223,8 +224,8 @@ the status metadata above it. Review the complete policy, then submit it as a
 new revision:
 
 ```shell
-openshell policy set demo --policy previous-base.yaml --wait
-openshell policy list demo
+openshell policy set my-sandbox --policy previous-base.yaml --wait
+openshell policy list my-sandbox
 ```
 
 This does not restore provider profiles, attachments, credentials, or global

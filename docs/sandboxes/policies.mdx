@@ -8,21 +8,26 @@ keywords: "Generative AI, Cybersecurity, Policy, Network Policy, Sandbox, Securi
 position: 6
 ---
 
-Use sandbox policies to control which files programs can access, which network
-destinations they can reach, and which application requests they can make. This
-guide explains how to inspect, change, and verify those permissions.
+Sandbox policies define what programs can access and which actions they can take
+within an OpenShell sandbox. OpenShell uses declarative YAML configurations to
+specify which files programs can access, which network destinations they can
+reach, and which application requests they can make.
 
-## Policy Structure
+This guide explains how to inspect, change, and verify those permissions.
 
-A sandbox policy expresses access rules and runtime settings in declarative
-YAML. Filesystem settings define where programs can read and write, and process
+## Policy Configuration
+
+The policy configuration file groups related settings into sections, each
+controlling a different aspect of how programs run and interact with their
+environment.
+
+Filesystem settings define where programs can read and write, and process
 settings select the user and group they run as. Network rules define which
 services each program can reach and which requests it can send. Optional
 middleware can inspect or transform allowed traffic, for example to redact
 sensitive content from a request.
 
-The following outline shows how these controls are organized, with individual
-settings omitted:
+The configuration contains the following policy sections:
 
 ```yaml
 version: 1
@@ -33,165 +38,21 @@ network_policies: { ... }    # Network destinations and permitted requests.
 network_middlewares: { ... } # Additional traffic processing.
 ```
 
-Filesystem enforcement and process identity are set when the workload starts.
-Network rules and policy settings for built-in or already registered middleware
-can change while it runs, subject to the lifecycle limits given in
-[Understand Reloads](#understand-reloads). Registering a new external middleware
-service or changing its gateway registration requires a gateway restart.
-
 Refer to the [Policy Schema Reference](/reference/policy-schema) for every
 accepted field.
 
-## Apply Policy Changes
+## Understand Policy Sources
 
-You can supply a policy when creating a sandbox, update its network rules, or
-replace the full policy.
+Every sandbox runs under a policy, but you do not have to supply a policy file
+when creating one. OpenShell selects a policy from its configured sources,
+falling back to its restrictive default when no other source supplies one.
 
 The base policy is the policy configured for the sandbox. The effective policy
 includes rules contributed by attached providers, unless a gateway-global policy
 replaces normal sandbox and provider selection.
 
-| Operation | Use it when | Important behavior |
-|---|---|---|
-| `sandbox create --policy` | You know the complete policy before creation. | The file supplies the initial authored policy and can set startup-time controls. |
-| `policy update` | You need to add or remove network permissions. | It changes only `network_policies` and preserves every other section. |
-| `policy set` | You need to replace the complete policy, including middleware or startup settings. | Start from the current base so you preserve required startup settings and exclude provider-owned rules. |
-
-## Allow an API Request
-
-To allow an API request, select the program, destination, and permitted request
-types. For example, this network rule permits curl to read the GitHub API:
-
-```yaml
-network_policies:
-  github_readonly:
-    name: github-readonly
-    endpoints:
-      - host: api.github.com
-        port: 443
-        protocol: rest
-        enforcement: enforce
-        access: read-only
-    binaries:
-      - path: /usr/bin/curl
-```
-
-The rule permits `/usr/bin/curl` to connect to `api.github.com:443` and use the
-REST methods in the `read-only` preset. `enforcement: enforce` blocks requests
-outside that set. The default mode is `audit`, which logs a request-rule
-violation but forwards the request.
-
-Use `policy update` to add this permission without replacing the rest of the
-policy. Replace `my-sandbox` with your sandbox name; the executable path must
-match the program inside that sandbox:
-
-```shell
-openshell policy update my-sandbox \
-  --rule-name github_readonly \
-  --binary /usr/bin/curl \
-  --add-endpoint api.github.com:443:read-only:rest:enforce \
-  --wait
-```
-
-Review the effective policy before adding a grant because other rules can also
-permit the requests you intend to block. Rules are not an ordered firewall list.
-Rules that match the same request can contribute permissions together, and an
-applicable deny takes precedence over an allow. See [Understand Overlapping
-Rules](/sandboxes/network-policy-recipes#understand-overlapping-rules) for how
-OpenShell combines permissions and selects request-processing settings.
-
-After activation, verify both an allowed request and a request that should remain
-blocked. Confirm the denial comes from OpenShell rather than the upstream
-service. For a complete exercise with setup, commands, and expected responses,
-see [Write Your First Sandbox Network
-Policy](/get-started/tutorials/first-network-policy).
-
-## Incremental Policy Updates
-
-Use `policy update` to add or remove network permissions. When appending request
-allow or deny rules to an existing endpoint, identify its rule, specify the
-rule's complete binary list and the endpoint's complete port list, and include
-the endpoint path when needed. This prevents a narrow edit from accidentally
-giving other programs access to the destination.
-
-For a sandbox with the `github_readonly` rule shown above, this command previews
-a deny for `GET /zen` while leaving the rule's other read-only requests allowed:
-
-```shell
-openshell policy update my-sandbox \
-  --add-deny 'api.github.com:443:GET:/zen' \
-  --rule-name github_readonly \
-  --binary /usr/bin/curl \
-  --dry-run
-```
-
-The preview fetches the current policy from the gateway and shows the proposed
-result locally. It does not save a revision or run every check needed to activate
-the change. Refer to the [Incremental Policy Update
-Reference](/reference/policy-updates) for the full
-grammar, scope rules, and status behavior.
-
-## Inspect and Replace a Policy
-
-Use the base view as your editable starting point and the effective view to
-review permissions from all selected sources. Replace `my-sandbox` with your
-sandbox name:
-
-```shell
-openshell policy get my-sandbox --base
-openshell policy get my-sandbox --full
-```
-
-The base view prints status metadata followed by a `---` separator and the policy
-in YAML. Copy only the YAML below the separator into `policy.yaml`. Keep the
-complete policy, including its filesystem, Landlock, process, and unrelated
-network settings, then edit the sections you intend to change. Do not redirect
-the entire output into a policy file, because the metadata is not part of the
-policy.
-
-Apply the complete file and inspect the revision:
-
-```shell
-openshell policy set my-sandbox --policy policy.yaml --wait
-openshell policy list my-sandbox
-```
-
-`--wait` can finish successfully for a loaded, unchanged, or superseded result.
-Inspect the active revision and retry the request. Without `--wait`, command
-success means only that submission succeeded.
-
-Export the current effective policy for review or an optional containment check:
-
-```shell
-openshell sandbox get my-sandbox --policy-only > effective-policy.yaml
-```
-
-Do not submit that effective export as the sandbox base. It can contain
-provider-owned entries.
-
-To restore an earlier compatible base revision, follow [Restore an Earlier Base
-Revision](/sandboxes/troubleshoot-policies#restore-an-earlier-base-revision).
-
-### Export JSON for Automation
-
-If you use `jq` for scripting, you can extract an editable policy without copying
-the YAML manually. This optional workflow requires `jq` on your host. JSON is
-accepted by the same policy parser as YAML:
-
-```shell
-set -o pipefail
-openshell policy get my-sandbox --base --output json \
-  | jq -e '.policy' > base-policy.json
-```
-
-`--base` excludes provider-owned entries, and `jq` extracts the policy from the
-JSON response. Edit `base-policy.json`, then pass it to `policy set`
-instead of `policy.yaml`.
-
-## Understand Policy Sources
-
-The gateway composes a sandbox's effective configuration from one policy source
-and, when allowed, attached provider policy layers.
+The gateway selects one policy source and, when allowed, adds rules from
+attached providers:
 
 ```mermaid
 flowchart TD
@@ -208,37 +69,140 @@ flowchart TD
     H --> I["Make the configuration active"]
 ```
 
-This diagram shows source precedence. At creation, an explicit `--policy` file
-takes precedence over `OPENSHELL_SANDBOX_POLICY`. OpenShell looks inside the
-image only when the sandbox has no saved policy. A gateway-global policy replaces
+At creation, an explicit `--policy` file takes precedence over
+`OPENSHELL_SANDBOX_POLICY`. OpenShell looks inside the image only when the sandbox
+has no saved policy. A gateway-global policy replaces
 normal sandbox policy selection and prevents provider rules from being added.
 
-## Global Policy Override
+## Apply Policy Changes
 
-A platform administrator can set a gateway-global policy. It replaces each
-sandbox policy; it is not a ceiling intersected with existing grants. While it
-is active, sandbox policy updates are blocked and provider-added network grants
-are suppressed. Credential authorization remains a separate check, so a network
-grant alone does not make a provider credential usable at a destination.
+You can update network rules while a sandbox is running. Changes to filesystem
+permissions and process identity require recreating the sandbox to take effect.
+See [Understand Reloads](#understand-reloads) for the limits on each type of
+change.
 
-Deleting the global override restores normal sandbox selection and provider
-composition. The gateway rejects restoration when the resulting effective
-configuration is invalid. Inspect effective policy before, during, and after an
-operator changes the override.
+The OpenShell CLI provides three ways to apply changes. Choose based on whether
+you are creating a sandbox, changing network permissions, or replacing its
+configuration:
 
-Inspect the current override, apply a reviewed complete policy, and remove the
-override with the gateway-global commands:
+| Command | Use it when | Important behavior |
+|---|---|---|
+| `openshell sandbox create --policy` | You know the complete policy before creation. | The file supplies the sandbox's initial policy and can set startup-time controls. |
+| `openshell policy update` | You need to add or remove network permissions. | It changes only `network_policies` and preserves every other section. |
+| `openshell policy set` | You need to replace the complete policy, including middleware or startup settings. | Start from the current base so you preserve required startup settings and exclude provider-owned rules. |
+
+### Inspect the Current Policy
+
+The base and effective views show the result of policy selection. The base view
+excludes provider-contributed rules, making it the starting point for sandbox
+policy edits. The effective view includes permissions from all selected sources.
+In the command examples, replace `my-sandbox` with the name of your sandbox:
 
 ```shell
-openshell policy get --global --full
-openshell policy set --global --policy ./global-policy.yaml
-openshell policy list --global
-openshell policy delete --global
+openshell policy get my-sandbox --base
+openshell policy get my-sandbox --full
 ```
 
-The set and delete commands ask for confirmation unless you pass `--yes`. Keep
-the prompt during interactive work because each operation changes the network
-model for every sandbox on the gateway.
+Check the effective view's `Source` field for a gateway-global override, which
+blocks sandbox policy changes. Review all rules that could allow the operation
+you intend to restrict. Matching rules can contribute permissions together, and
+an applicable request deny takes precedence over an allow. See
+[Understand Overlapping Rules](/sandboxes/network-policy-recipes#understand-overlapping-rules)
+for the matching rules.
+
+For review or a [policy containment check](/reference/policy-prover), export the
+effective policy as YAML:
+
+```shell
+openshell sandbox get my-sandbox --policy-only > effective-policy.yaml
+```
+
+The effective export can contain provider-owned rules. Prepare edits from the
+base view, as described in [Replace the Policy](#replace-the-policy).
+
+### Update Network Rules
+
+To give a program access to a service, add an endpoint specifying its executable
+path, destination, and permitted request types. For a sandbox containing
+`/usr/bin/curl`, this command adds
+read-only access to the GitHub API:
+
+```shell
+openshell policy update my-sandbox \
+  --rule-name github_readonly \
+  --binary /usr/bin/curl \
+  --add-endpoint api.github.com:443:read-only:rest:enforce \
+  --wait
+```
+
+Here, `rest` enables HTTP request inspection, `read-only` permits GET, HEAD, and
+OPTIONS, and `enforce` blocks requests outside that set. The default enforcement
+mode is `audit`, which logs an applicable request-rule violation but forwards the
+request. Other matching rules can also grant permissions, so inspect the
+effective policy before relying on a restriction.
+
+The binary path must match the executable inside the sandbox. For other
+protocols and their YAML configuration, see
+[Configure Network Policy Rules](/sandboxes/network-policy-recipes).
+
+For changes to an existing rule, take its name, binaries, and endpoint details
+from the base policy. Request-rule edits require the complete affected scope so
+the command identifies exactly which permissions will change. You can also
+remove one named rule or remove a destination across rules.
+
+To preview an incremental operation, use `--dry-run` instead of `--wait`. The CLI
+fetches the current policy and shows the proposed result without saving it. This
+preview does not run every check needed to activate the change. The
+[Incremental Policy Update Reference](/reference/policy-updates) covers command
+syntax, targeting requirements, and removal behavior.
+
+### Replace the Policy
+
+A full replacement supplies every section of the policy, including settings
+you intend to keep. Begin with the current base:
+
+```shell
+openshell policy get my-sandbox --base
+```
+
+The base view prints status metadata followed by a `---` separator and the policy
+in YAML. Copy only the YAML below the separator into `policy.yaml`. Keep the
+complete policy, including its filesystem, Landlock, process, and unrelated
+network settings, then edit the sections you intend to change. Do not redirect
+the entire output into a policy file, because the metadata is not part of the
+policy.
+
+Submit the edited file with `--wait` to wait for its revision result:
+
+```shell
+openshell policy set my-sandbox --policy policy.yaml --wait
+```
+
+The new policy must pass validation before becoming active. Changes to startup
+settings remain subject to the limits in [Understand Reloads](#understand-reloads).
+
+To restore an earlier compatible base revision, follow [Restore an Earlier Base
+Revision](/sandboxes/troubleshoot-policies#restore-an-earlier-base-revision).
+For scripted exports, the command reference includes an optional
+[JSON workflow](/reference/policy-updates#full-replacement) using `jq`.
+
+### Verify the Change
+
+A successful submission means the gateway accepted the change. With `--wait`,
+the CLI also waits for a revision result, but success can mean the revision
+loaded, made no change, or was superseded by another update. Inspect policy
+history and the effective configuration before relying on new permissions:
+
+```shell
+openshell policy list my-sandbox
+openshell policy get my-sandbox --full
+```
+
+Then test an operation that should be allowed and one that should be blocked.
+Confirm any denial comes from OpenShell rather than the destination service or
+a missing client tool. The [first network policy
+tutorial](/get-started/tutorials/first-network-policy) demonstrates these checks
+in a prepared sandbox.
 
 ## Understand Reloads
 
@@ -277,13 +241,42 @@ flowchart TD
     H --> A
 ```
 
-A no-op update may create no new revision. Gateway acceptance is also distinct
-from runtime activation. The troubleshooting guide explains `fail_closed`,
-`retain_last_valid`, provisioning repair, and CLI wait timeouts.
+A no-op update may create no new revision. If validation fails, the effect on
+existing access depends on the failure stage and the configured runtime failure
+mode. [Troubleshoot Sandbox Policies](/sandboxes/troubleshoot-policies) explains
+how to identify that stage and repair the configuration.
+
+## Global Policy Override
+
+A gateway administrator can apply one policy across the gateway's sandboxes.
+This global override replaces each sandbox policy; it is not a ceiling
+intersected with existing grants. While it is active, sandbox policy updates
+are blocked and provider-added network grants
+are suppressed. Credential authorization remains a separate check, so a network
+grant alone does not make a provider credential usable at a destination.
+
+Deleting the global override restores normal sandbox selection and provider
+composition. The gateway rejects restoration when the resulting effective
+configuration is invalid. Inspect effective policy before, during, and after an
+operator changes the override.
+
+The OpenShell CLI provides separate operations for managing the override:
+
+| Operation | Command |
+|---|---|
+| Inspect the current override. | `openshell policy get --global --full` |
+| Apply a reviewed complete policy. | `openshell policy set --global --policy ./global-policy.yaml` |
+| View global policy history. | `openshell policy list --global` |
+| Remove the override and restore normal policy selection. | `openshell policy delete --global` |
+
+The set and delete commands ask for confirmation unless you pass `--yes`. Keep
+the prompt during interactive work because each operation changes the network
+model for every sandbox on the gateway.
 
 ## Allow Native TCP Connections
 
-Use `protocol: tcp` for clients that need ordinary DNS resolution and a native
+Some applications, such as database clients, need a native connection rather
+than an HTTP proxy. `protocol: tcp` provides ordinary DNS resolution and a native
 TCP socket without application payload inspection. It supports Docker and
 Podman. The standard runtime prepares DNS and TCP connection handling even when
 the initial policy has no TCP endpoints, so you can add the first endpoint
@@ -293,8 +286,9 @@ for the recipe and shared-hosting limitations.
 
 ## Supervisor Middleware
 
-Use `network_middlewares` to select middleware, choose the destination hosts it
-applies to, and configure its behavior. Network rules must allow the traffic
+For traffic that needs additional inspection or transformation,
+`network_middlewares` selects middleware, the destination hosts it applies to,
+and its configuration. Network rules must allow the traffic
 before middleware can process it.
 
 Middleware can inspect HTTP requests before credential injection, HTTP responses

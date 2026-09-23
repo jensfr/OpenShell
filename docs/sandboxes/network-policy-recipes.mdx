@@ -8,9 +8,10 @@ keywords: "Generative AI, Cybersecurity, Policy, Network, REST, TCP, WebSocket, 
 position: 7
 ---
 
-Use these recipes to choose what OpenShell inspects and to define both an
-allowed and denied outcome. Every YAML block is a complete entry for the
-`network_policies` map in a `version: 1` policy file.
+Network rules combine a destination and executable with optional
+application-request checks. Each recipe on this page illustrates a permission
+for a particular protocol and how to verify it. Choose the recipe that matches
+your service and adapt it to your sandbox's policy.
 
 ## Choose a Protocol
 
@@ -34,12 +35,36 @@ stream such as client-certificate mTLS. Provider-credentialed endpoints reject
 uninspected traffic unless you explicitly set
 `allow_uninspected_credentials: true`.
 
+## Understand Inspected HTTP Flow
+
+Inspected HTTP requests pass through several independent checks.
+
+```mermaid
+flowchart TD
+    A["Sandbox tool"] --> B["Check destination<br/>and process identity"]
+    B --> C["Check application request rules"]
+    C --> D["Run selected request middleware<br/>Recheck transformed operations"]
+    D --> E["Resolve permitted credentials"]
+    E --> F["Upstream service"]
+    F --> G["Run selected response middleware"]
+    G --> A
+```
+
+Network rules check the destination and the calling program before allowing a
+connection. Protocol rules then check the application request. Middleware can
+filter or transform allowed traffic, and credential checks determine whether
+OpenShell can supply credentials to the destination. See the recipes below for
+native TCP and WebSocket boundaries that differ from ordinary inspected HTTP
+requests.
+
 ## Apply a Recipe
 
-Each recipe illustrates a permission and how to verify it. The commands use
-`my-sandbox` as a placeholder for your running sandbox's name. The sandbox must
-contain the binary named by the recipe. Recipes with example domains require a
-service you control at the replacement hostname and path.
+Each recipe can be applied independently. Its YAML supplies an entry for the
+`network_policies` section of a complete policy file. The commands use
+`my-sandbox` as a placeholder for your running sandbox's name. Before applying
+a recipe, confirm that the sandbox contains its client executable and that the
+destination service is available. Replace example domains with services you
+control.
 
 Start with the current base policy so you preserve startup settings and exclude
 provider-owned rules:
@@ -64,32 +89,11 @@ openshell policy list my-sandbox
 openshell policy get my-sandbox --full
 ```
 
-Use [Incremental Policy Updates](/reference/policy-updates) instead when its
-REST and WebSocket operations cover the change. A successful parse or submission
+For changes supported by `openshell policy update`, [incremental
+updates](/reference/policy-updates) preserve the other policy sections without
+requiring a complete replacement file. A successful parse or submission
 does not prove that the runtime activated the policy, so inspect revision status
 before testing traffic.
-
-## Understand Inspected HTTP Flow
-
-Inspected HTTP requests pass through several independent checks.
-
-```mermaid
-flowchart TD
-    A["Sandbox tool"] --> B["Check destination<br/>and process identity"]
-    B --> C["Check application request rules"]
-    C --> D["Run selected request middleware<br/>Recheck transformed operations"]
-    D --> E["Resolve permitted credentials"]
-    E --> F["Upstream service"]
-    F --> G["Run selected response middleware"]
-    G --> A
-```
-
-Network rules check the destination and the calling program before allowing a
-connection. Protocol rules then check the application request. Middleware can
-filter or transform allowed traffic, and credential checks determine whether
-OpenShell can supply credentials to the destination. See the recipes below for
-native TCP and WebSocket boundaries that differ from ordinary inspected HTTP
-requests.
 
 ## Allow REST Reads
 
@@ -131,12 +135,11 @@ in shell commands so the local shell does not expand them.
 
 ### Observe a Rule Before Enforcing It
 
-Use audit mode only when you deliberately want to observe applicable request
-violations without blocking them. Change the REST endpoint above to
-`enforcement: audit`, apply the policy, and repeat the POST. The request passes
-the request-policy check and continues to the upstream service. Its eventual
-HTTP status is therefore an upstream result, not proof that OpenShell allowed
-the operation semantically.
+An endpoint with `enforcement: audit` logs applicable request-rule violations
+and forwards the requests. For a REST endpoint with `access: read-only`, a POST
+therefore produces a violation event but still reaches the upstream service if
+the other checks allow it. The resulting HTTP status comes from that service.
+Choose audit mode when you intend to observe violations without blocking them.
 
 Inspect the policy event without a WARN filter:
 
@@ -144,11 +147,11 @@ Inspect the policy event without a WARN filter:
 openshell logs my-sandbox --since 5m --source sandbox
 ```
 
-The event must identify the request-policy violation even though the request
-was forwarded. OCSF policy events are INFO-level tracing records; their OCSF
+Look for an event identifying the request-policy violation even though the
+request was forwarded. OCSF policy events are INFO-level tracing records; their OCSF
 severity does not change the CLI's tracing-level filter. Audit does not bypass
-destination, executable, credential, parser, or middleware checks. Return the
-endpoint to `enforcement: enforce` before relying on the rule as a boundary.
+destination, executable, credential, parser, or middleware checks. An endpoint
+must use `enforcement: enforce` for its request rules to block traffic.
 
 ## Match Query Values
 
@@ -414,13 +417,15 @@ permission. An applicable request deny takes precedence over an allow. The
 endpoint parser selected for a connection is a separate choice from whether the
 parsed operation is allowed.
 
-The commands below are an adaptable template. Replace `api.example.com` and the
-paths with routes on an HTTP service you control. Suppose one rule permits `GET
+For example, suppose one rule permits `GET
 /repos/**` and another matching rule denies
 `GET /repos/private/**` for the same host, port, and executable. The private
 path is denied regardless of which rule appears first in YAML. Keep related
-exceptions close enough to review together. After applying both rules with the
-shared procedure, test the overlap explicitly:
+exceptions close enough to review together.
+
+For a sandbox configured with those two rules, the following requests test the
+overlap. Replace `api.example.com` and the paths with routes on an HTTP service
+you control:
 
 ```shell
 openshell sandbox exec -n my-sandbox --no-login-shell -- \
