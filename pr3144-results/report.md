@@ -2,11 +2,11 @@
 
 **Result: It works. No blockers found in this configuration.** The new topology runs one Kata VM for the workload and a plain OCI container for the supervisor. Per-sandbox VM count stays at one.
 
-**Tested configuration**: revision a8f98ec09 (main HEAD), custom initrd with veth/nftables modules, PR #3420 WAIT_KILLABLE_RECV fallback active, single-node OpenShift 4.22.13, Kata 3.31.0 via OSC 1.13.1.
+**Tested configuration**: revision a8f98ec09 (main HEAD), PR #3420 WAIT_KILLABLE_RECV fallback active, single-node OpenShift 4.22.13, Kata 3.31.0 via OSC 1.13.1.
 
 **Date**: 2026-09-24
 **Cluster**: virtlab2400, single-node OpenShift 4.22.13
-**Kata**: OSC 1.13.1, kata-containers-3.31.0-7 with custom initrd (veth/nftables modules)
+**Kata**: OSC 1.13.1, kata-containers-3.31.0-7
 **Evaluation revision**: a8f98ec09 (main HEAD; the original PR #3144 pin dc47f155 lacks a kernel compatibility fix added by PR #3420)
 
 ---
@@ -59,16 +59,21 @@ L7 enforcement is clean: the supervisor MITMs TLS, inspects HTTP methods, and re
 
 ## Resource Cost (Idle, Single Sample)
 
-All values measured via `/proc/<pid>/status` VmRSS on the host:
+Host-side process RSS via `/proc/<pid>/status` VmRSS:
 
 | Component | RSS (host /proc VmRSS) |
 |-----------|------------------------|
 | QEMU (guest configured at 2048MB) | 486 MB |
 | virtiofsd (2 processes) | 26 MB |
 | containerd-shim-kata-v2 | 47 MB |
-| Supervisor pod | 18 MB |
 
-RSS may double-count shared pages. The 350Mi scheduler overhead is a declared value, not measured consumption.
+Supervisor pod working-set memory via `kubectl top`:
+
+| Component | Working set (kubectl top) |
+|-----------|--------------------------|
+| Supervisor pod | 18 MiB |
+
+RSS may double-count shared pages. Working-set memory (kubectl top) and RSS (/proc VmRSS) are different metrics and should not be compared directly. The 350Mi scheduler overhead is a declared value, not measured consumption.
 
 ## Configuration Baseline
 
@@ -82,3 +87,4 @@ RSS may double-count shared pages. The 350Mi scheduler overhead is a declared va
 - Warm-pool behavior
 - Multiple concurrent sandboxes
 - OpenShell e2e test suite with Kata runtime
+- Direct CNI isolation verification (policy-mediated curl tests do not establish network-level isolation independent of the supervisor)

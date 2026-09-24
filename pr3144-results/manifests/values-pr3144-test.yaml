@@ -1,5 +1,10 @@
 # PR #3144 topology test: separate workload (Kata VM) + supervisor (default OCI)
 # Images: GHCR dev (a8f98ec09, includes PR #2942 topology + PR #3420 fallback)
+# Resolved digests at test time:
+#   gateway:  ghcr.io/nvidia/openshell/gateway@sha256:c2b40fab1d35aa32060d522323339c678598320b081c632be6b32eaedd463c02
+#   sandbox:  ghcr.io/nvidia/openshell/sandbox@sha256:937e9611ee07e267f190e2f5c6936ebbe502ce84da3eb07cd61c39aef3534196
+#   supervisor: ghcr.io/nvidia/openshell/supervisor@sha256:ccf06a036b229a77077febf88448c0fda20dac7cb1fc351dcf8e346c18cea206
+#   workload: docker.io/nicolaka/netshoot@sha256:147f2c4cb0aa7a741151bce2bfef71d9e1a04631636e24665ee2a5ed799feb47
 
 global:
   image:

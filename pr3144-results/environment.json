@@ -44,7 +44,7 @@
     "runtime_class": "kata",
     "kata_version": "3.31.0",
     "kata_rpm": "kata-containers-3.31.0-7.rhaos4.22.el9.x86_64",
-    "kata_rpm_sha256": "TODO: compute on node",
+    "kata_rpm_sha256header": "1818c7b539e4022a7709106e0b13fdce9cba5721a641fe8be5850d7ebb94de75",
     "kata_rpm_unsigned": true,
     "kata_rpm_build_host": "x86-64-03.build.eng.rdu2.redhat.com",
     "kata_rpm_build_date": "2026-09-17T17:22:56Z",
@@ -54,7 +54,8 @@
     "guest_kernel": "5.14.0-687.44.1.el9_8.x86_64 (host kernel used as guest)",
     "guest_initrd": "/var/cache/kata-containers/osbuilder-images/5.14.0-687.44.1.el9_8.x86_64/kata.initrd",
     "guest_initrd_type": "full (with systemd, not kata-slim)",
-    "guest_initrd_custom_modules": ["veth", "nf_tables", "nft_reject", "nft_reject_inet"],
+    "guest_initrd_modules_verified": ["veth", "nf_tables", "nft_reject", "nft_reject_inet"],
+    "guest_initrd_sha256": "f7c4cda9a86b52cbf2ccd5505c0a9b075cb990981f2d8ed807788dda424edbe2",
     "guest_selinux": "disabled (selinux=0 in kernel cmdline)",
     "prebuilt_guest_kernel_6_12": "available but not used (for CC/GPU variants only)"
   },
