@@ -1067,3 +1067,11 @@ header[role="banner"] > div[class*="bg-(color:--accent)"][class*="text-(color:--
         opacity: 0;
     }
 }
+
+/* Fern renders sequence diagrams that use `box` with client-side Mermaid and
+   escapes `>` in Mermaid's generated CSS, so participant labels inherit the
+   participant fill. Restore the label color for light and dark modes. */
+.mermaid-container > svg[aria-roledescription="sequence"] text.actor > tspan {
+    fill: var(--fg);
+    stroke: none;
+}

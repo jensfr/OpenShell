@@ -36,6 +36,8 @@ import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
+// Sequence diagram `box` parsing validates colors with `new Option()`.
+globalThis.Option = dom.window.Option;
 
 const { default: mermaid } = await import('mermaid');
 
