@@ -25,21 +25,9 @@
 - **Observed behavior**: Supervisor pod deletion triggers gateway to tear down the workload pod and Kata VM
 - **Gateway log**: "sandbox-runtime supervisor is unavailable; suspending workload"
 - **Phase transition**: Running -> Provisioning -> Stopped
-- **Impact**: Running processes and in-memory state lost; workspace filesystem (kataShared mount) survives if backed by PVC
-
-## Operational
-
-### F2: Kata Initrd Cache Invalidation
-
-- **Trigger**: RPM upgrade within same kernel version
-- **Symptom**: `kata-osbuilder-generate.service` reports "Nothing to do"
-- **Workaround**: Delete `/var/cache/kata-containers/osbuilder-images/<kernel-version>/` before running the service
-- **Scope**: Affects any dracut config or module change that doesn't also change the kernel version
-
-### F4: Workload Metrics via kubectl top
-
-- **Observed**: `kubectl top pod` returns NotFound for Kata workload pods
-- **Status**: Requires investigation (Kata 3.31 supports container statistics; may be a cluster metrics pipeline issue)
+- **Impact**: Running processes and in-memory state lost; workspace filesystem (PVC-backed /sandbox) survives
+- **Recovery**: `sandbox start` restores with a new VM in ~9.6 seconds; workspace preserved, ephemeral state gone
+- **Traffic behavior**: With active HTTPS requests, 9 requests succeeded (HTTP 200), relay closed ~1 second after supervisor kill
 
 ## Configuration Baseline
 
@@ -47,5 +35,4 @@
 
 - **Location**: `/etc/kata-containers/configuration.toml`
 - **Effect**: Kata agent does not enforce container seccomp profiles inside the VM
-- **OpenShell impact**: None (sandbox runtime applies its own seccomp filters at PID 1)
-- **oc exec impact**: Processes started via oc exec bypass the sandbox runtime and run without seccomp or NoNewPrivs
+- **OpenShell impact**: Sandboxed processes are still filtered (sandbox runtime applies its own seccomp at PID 1). Processes started via `oc exec` bypass the sandbox runtime and run without the Kata agent's seccomp layer. Whether this matters depends on the threat model for `oc exec` access to Kata workload pods.
