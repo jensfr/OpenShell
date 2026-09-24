@@ -1,0 +1,85 @@
+{
+  "test_run": {
+    "id": "pr3144-virtlab2400-20260924",
+    "date": "2026-09-24T10:00:00Z",
+    "target_pr": 3144,
+    "target_commit": "dc47f155324e6ae42b02392b13bd12aa62ea7b2b",
+    "parent_pr": 2942,
+    "parent_commit": "c1f2e7189f837f98d00fb3821b6fb8d1253ceec3"
+  },
+  "cluster": {
+    "name": "virtlab2400",
+    "type": "SNO (single-node OpenShift)",
+    "ocp_version": "4.22.13",
+    "channel": "stable-4.22",
+    "kubernetes_version": "v1.35.6",
+    "cluster_id": "<redacted>",
+    "api_url": "<redacted>"
+  },
+  "node": {
+    "name": "virtlab2400",
+    "roles": ["control-plane", "master", "worker"],
+    "ip": "<redacted>",
+    "os": "Red Hat Enterprise Linux CoreOS 9.8.20260901-0 (Plow)",
+    "host_kernel": "5.14.0-687.44.1.el9_8.x86_64",
+    "container_runtime": "cri-o://1.35.6",
+    "default_oci_handler": "crun"
+  },
+  "network": {
+    "type": "OVNKubernetes",
+    "cluster_cidr": "10.128.0.0/14",
+    "host_prefix": 23,
+    "service_cidr": "172.30.0.0/16",
+    "mtu": 1400
+  },
+  "storage": {
+    "default_class": "local-path",
+    "provisioner": "rancher.io/local-path",
+    "volume_binding_mode": "WaitForFirstConsumer",
+    "allow_expansion": false
+  },
+  "kata": {
+    "osc_operator_version": "1.13.1",
+    "osc_operator_csv": "sandboxed-containers-operator.v1.13.1",
+    "runtime_class": "kata",
+    "kata_version": "3.31.0",
+    "kata_rpm": "kata-containers-3.31.0-7.rhaos4.22.el9.x86_64",
+    "kata_rpm_sha256": "TODO: compute on node",
+    "kata_rpm_unsigned": true,
+    "kata_rpm_build_host": "x86-64-03.build.eng.rdu2.redhat.com",
+    "kata_rpm_build_date": "2026-09-17T17:22:56Z",
+    "shim_version": "3.31.0 (commit 84780cbb6f1ac9be55bae9eac132f6e2b88c690f)",
+    "hypervisor": "QEMU 10.1.0 (qemu-kvm-10.1.0-17.el9_8.5)",
+    "virtiofsd": "virtiofsd-1.13.3-1.el9.x86_64",
+    "guest_kernel": "5.14.0-687.44.1.el9_8.x86_64 (host kernel used as guest)",
+    "guest_initrd": "/var/cache/kata-containers/osbuilder-images/5.14.0-687.44.1.el9_8.x86_64/kata.initrd",
+    "guest_initrd_type": "full (with systemd, not kata-slim)",
+    "guest_initrd_custom_modules": ["veth", "nf_tables", "nft_reject", "nft_reject_inet"],
+    "guest_selinux": "disabled (selinux=0 in kernel cmdline)",
+    "prebuilt_guest_kernel_6_12": "available but not used (for CC/GPU variants only)"
+  },
+  "agent_sandbox": {
+    "crd_api_version": "agents.x-k8s.io/v1beta1",
+    "extensions_api_version": "extensions.agents.x-k8s.io/v1beta1",
+    "resources": ["sandboxes", "sandboxclaims", "sandboxtemplates", "sandboxwarmpools"],
+    "controller_pods": ["agent-sandbox-controller-7458959bbd-vz8j8", "sandbox-router-c44b779dc-7vtlf"],
+    "controller_namespace": "agent-sandbox-system"
+  },
+  "kernel_capabilities": {
+    "landlock_abi": 6,
+    "landlock_v3_plus": true,
+    "seccomp_new_listener": true,
+    "seccomp_wait_killable_recv": false,
+    "seccomp_wait_killable_recv_fallback": "LegacyReadOnly mode (task_memory_writes_disabled, cancellation disabled)",
+    "note": "RHEL 9.8 kernel 5.14.0 backports Landlock to ABI v6 but does not include WAIT_KILLABLE_RECV (upstream 5.19)"
+  },
+  "scc": {
+    "test_pods_admitted_as": "restricted-v2",
+    "openshell_sandbox_scc_available": true,
+    "openshell_sandbox_scc_caps": ["NET_ADMIN", "SYS_ADMIN", "SYS_PTRACE", "SYSLOG"]
+  },
+  "admission_webhooks": {
+    "mutating": ["catalogd", "intel-device-plugins (fpga, dlb, dsa, gpu, iaa, npu, qat, sgx)"],
+    "validating": ["alertmanager", "autoscaling", "baremetal", "controlplanemachineset", "monitoring", "multus", "network-node-identity", "performance-addon", "prometheusrules", "intel-device-plugins"]
+  }
+}

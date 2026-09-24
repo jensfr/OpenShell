@@ -1,0 +1,37 @@
+# PR #3144 topology test: separate workload (Kata VM) + supervisor (default OCI)
+# Images: GHCR dev (a8f98ec09, includes PR #2942 topology + PR #3420 fallback)
+
+global:
+  image:
+    registry: ghcr.io/nvidia
+    tag: dev
+    pullPolicy: Always
+
+gateway:
+  image:
+    repository: openshell/gateway
+
+sandboxRuntime:
+  image:
+    repository: openshell/sandbox
+
+supervisor:
+  image:
+    repository: openshell/supervisor
+  sandboxRuntime:
+    networkPolicyEnforced: true
+    boundaryPort: 5500
+
+server:
+  disableTls: true
+  auth:
+    allowUnauthenticatedUsers: true
+  defaultRuntimeClassName: kata
+  workspaceStorageClass: ""
+  drivers:
+    kubernetes:
+      resourceAdmission:
+        enabled: true
+
+pkiInitJob:
+  enabled: true
