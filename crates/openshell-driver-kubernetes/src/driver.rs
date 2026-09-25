@@ -1784,7 +1784,9 @@ impl KubernetesComputeDriver {
             .namespace
             .as_deref()
             .ok_or_else(|| tonic::Status::failed_precondition("sandbox lacks namespace"))?;
-        sandbox_id_from_object(object).map_err(tonic::Status::failed_precondition)?;
+        if !warm_pool::is_pool_pair(object) {
+            sandbox_id_from_object(object).map_err(tonic::Status::failed_precondition)?;
+        }
         let spec = &object.data["spec"]["podTemplate"]["spec"];
         let private_secret = sandbox_bootstrap_secret_name(spec).ok_or_else(|| {
             tonic::Status::failed_precondition(
