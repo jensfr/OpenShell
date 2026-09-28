@@ -22,7 +22,7 @@ Compilation: passes `cargo check` with 1 warning (unused `generations` parameter
 **Conflict:** 6+ conflict regions. Main refactored resource admission, added `generations` parameter to `delete_sandbox_runtime_supervisor` and `reconcile_sandbox_runtime_supervisor`, renamed `ANNOTATION_SANDBOX_RUNTIME_NETWORK_POLICY_VERSION` to `..._GENERATION`. Gordon added warm pool controller, pair management, template handling.
 **Resolution:**
 - Kept main's refactored function signatures (3-arg `delete_sandbox_runtime_supervisor` with `generations: &[&str]`, 4-arg `reconcile_sandbox_runtime_supervisor`)
-- Gordon's warm pool call sites updated to pass `&[]` for `generations` (warm pool pairs don't use generation-based secret cleanup)
+- Gordon's warm pool call sites initially passed `&[]` for `generations`; later corrected to pass `sandbox_runtime_generation()` since warm pairs do track a runtime generation via `PreparationAuthentication`
 - Renamed constant: Gordon's `ANNOTATION_SANDBOX_RUNTIME_NETWORK_POLICY_VERSION` -> `..._GENERATION` to match main
 - Added missing imports: `SANDBOX_SECRET_COMPONENT`, `SUPERVISOR_SECRET_COMPONENT` from `sandbox_runtime`
 - Kept Gordon's `create_sandbox_inner(sandbox, None)` warm pool parameter pattern
@@ -53,14 +53,21 @@ Compilation: passes `cargo check` with 1 warning (unused `generations` parameter
 **Resolution:** Gordon's warm pool config section added to main's renamed file path.
 
 ## Post-merge compile fixes
-- Added `SANDBOX_SECRET_COMPONENT`, `SUPERVISOR_SECRET_COMPONENT` to import list (line 15)
 - Changed `ANNOTATION_SANDBOX_RUNTIME_NETWORK_POLICY_VERSION` -> `..._GENERATION` (line 2643)
-- Added `&[]` generations argument to 4 warm pool call sites of `delete_sandbox_runtime_supervisor` and `reconcile_sandbox_runtime_supervisor` (lines 3235, 3427, 4115, 4176)
+- Added `&[]` generations argument to 4 warm pool call sites (later corrected, see below)
 
 ## Post-test fix (commit f06aa684d)
 - `admit_stored_resources()` at line 1787: skipped `sandbox_id_from_object()` check for `warm_pool::is_pool_pair()` objects. Warm pool pairs have no logical sandbox ID until claimed; main's admission check rejected them during preparation.
 
 ## Code review fixes (found by source review after test pass)
-- `delete_sandbox_runtime_generation_secrets()`: restored main's by-name deletion when `generations` is non-empty. The initial merge used Gordon's label-based cleanup unconditionally, ignoring the `generations` parameter. Now: non-empty `generations` deletes by exact name (main's behavior), empty `generations` falls back to label-based cleanup (warm pool path).
+
 - `PUBLIC_RPC_SCHEMA_SHA256`: updated to `48f83cf1...` to reflect `RegisterSupervisor` and warm pool RPCs added by the integration. Durable and overlap hashes unchanged. Message/enum counts unchanged.
 - Test compile fixes: `from_pem` TTL argument wrapped in `Some()` at 3 call sites (warm_pool.rs, mod.rs, supervisor_registration.rs). Added `warm_pair: None` to `CreateSandboxRequest` initializer in mod.rs.
+
+## Generation-scoped secret cleanup fix
+
+- Restored `sandbox_runtime_generation(&object).as_slice()` at all 4 lifecycle call sites (stop, start, reconcile, suspend) instead of `&[]`. Warm pairs track a runtime generation via `PreparationAuthentication`.
+- Removed the label-based empty-slice fallback from `delete_sandbox_runtime_generation_secrets()`. Restored main's pure by-name deletion: iterate `generations`, build names via `SandboxRuntimeNames::for_generation`, delete by exact name.
+- Removed unused `SANDBOX_SECRET_COMPONENT` and `SUPERVISOR_SECRET_COMPONENT` imports from driver.rs (no longer needed without the label-based fallback).
+- Fixed 5 remaining test compile errors: added `pool_targets`/`pool_reconcile_cursor` fields to 2 test driver initializers, added `None` pool argument to `create_sandbox_inner` call, removed stale `no_secrets()` test step, fixed `supervisor_bootstrap_secret` test arg count in sandbox_runtime.rs.
+- All 289 driver tests pass.

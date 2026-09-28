@@ -22,7 +22,7 @@ PR #3508 integrated with main at 924486805.
 
 ## Cold Kata baseline
 
-- Created sandbox `cold-baseline` in ~11 seconds (image pull + init containers + startup)
+- Created sandbox `cold-baseline` in 13.824 seconds (image pull + init containers + startup)
 - Exec works: `uname -a` returns RHEL 9.8 kernel
 - WAIT_KILLABLE_RECV fallback (PR #3420) operational on this kernel. This fallback was needed on the tested kernel (5.14.0, which lacks the flag); integrating with main was the chosen way to obtain it.
 - Sandbox pod runs under `restricted-v2` SCC with RuntimeDefault seccomp and all capabilities dropped

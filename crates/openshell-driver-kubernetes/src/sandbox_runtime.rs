@@ -779,7 +779,6 @@ mod tests {
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            Vec::new(),
             None,
             Some(ClientTlsMaterial {
                 ca_certificate: b"ca".to_vec(),
