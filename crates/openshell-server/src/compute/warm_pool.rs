@@ -1110,7 +1110,7 @@ mod tests {
                 key.public_key_pem.as_bytes(),
                 key.kid,
                 "gateway",
-                Duration::from_hours(1),
+                Some(Duration::from_hours(1)),
             )
             .unwrap(),
         ));

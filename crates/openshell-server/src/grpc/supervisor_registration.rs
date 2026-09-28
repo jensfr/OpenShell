@@ -267,7 +267,7 @@ mod tests {
             key.public_key_pem.as_bytes(),
             key.kid.clone(),
             "gateway",
-            Duration::from_hours(1),
+            Some(Duration::from_hours(1)),
         )
         .unwrap();
         let verifier = SessionJwtVerifier::new(

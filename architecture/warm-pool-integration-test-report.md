@@ -60,7 +60,7 @@ After claiming one pair, the warm pool controller created a new spare pair `warm
 
 | Metric | Cold | Warm (1 sample) |
 |--------|------|------------------|
-| Create command wall time | ~11s | 1.073s |
+| Create command wall time | 13.824s | 1.073s |
 | Pod reuse | N/A | Confirmed (UIDs identical) |
 | VM continuity | N/A | Not independently verified |
 | Spare replenishment | N/A | Confirmed |

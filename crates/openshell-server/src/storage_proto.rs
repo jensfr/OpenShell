@@ -123,7 +123,7 @@ mod tests {
     // no messages or enums and touch no stored type, so the durable and overlap
     // fingerprints below remain unchanged.
     const PUBLIC_RPC_SCHEMA_SHA256: &str =
-        "8fb59b0932ec2f227fdec2d46b6204925e79595695810a247bef731ddd632594";
+        "48f83cf1edd07cca84016afa6a59017675638de4ceb0f552855f48a62f5bbb28";
     const DURABLE_SCHEMA_SHA256: &str =
         "9eeaa29dfba187bff69fb7bc4f9a13a0f1d7be3f7049a38c8f0e20ce77ec7d8b";
     const PUBLIC_DURABLE_OVERLAP_SHA256: &str =

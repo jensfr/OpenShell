@@ -59,3 +59,8 @@ Compilation: passes `cargo check` with 1 warning (unused `generations` parameter
 
 ## Post-test fix (commit f06aa684d)
 - `admit_stored_resources()` at line 1787: skipped `sandbox_id_from_object()` check for `warm_pool::is_pool_pair()` objects. Warm pool pairs have no logical sandbox ID until claimed; main's admission check rejected them during preparation.
+
+## Code review fixes (found by source review after test pass)
+- `delete_sandbox_runtime_generation_secrets()`: restored main's by-name deletion when `generations` is non-empty. The initial merge used Gordon's label-based cleanup unconditionally, ignoring the `generations` parameter. Now: non-empty `generations` deletes by exact name (main's behavior), empty `generations` falls back to label-based cleanup (warm pool path).
+- `PUBLIC_RPC_SCHEMA_SHA256`: updated to `48f83cf1...` to reflect `RegisterSupervisor` and warm pool RPCs added by the integration. Durable and overlap hashes unchanged. Message/enum counts unchanged.
+- Test compile fixes: `from_pem` TTL argument wrapped in `Some()` at 3 call sites (warm_pool.rs, mod.rs, supervisor_registration.rs). Added `warm_pair: None` to `CreateSandboxRequest` initializer in mod.rs.

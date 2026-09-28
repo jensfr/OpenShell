@@ -13983,7 +13983,8 @@ mod tests {
         assert!(
             remote
                 .create_sandbox(Request::new(CreateSandboxRequest {
-                    sandbox: Some(sandbox)
+                    sandbox: Some(sandbox),
+                    warm_pair: None,
                 }))
                 .await
                 .is_err()
@@ -14313,7 +14314,7 @@ mod tests {
                 key.public_key_pem.as_bytes(),
                 key.kid,
                 "gateway",
-                Duration::from_hours(1),
+                Some(Duration::from_hours(1)),
             )
             .unwrap(),
         ));

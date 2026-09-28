@@ -3722,7 +3722,8 @@ impl KubernetesComputeDriver {
 
     /// Delete the bootstrap Secrets of the given runtime generations by exact
     /// name. Garbage collection through their owner Pods removes older
-    /// generations.
+    /// generations. When `generations` is empty, falls back to label-based
+    /// cleanup (used by warm pool pairs that do not track generations).
     async fn delete_sandbox_runtime_generation_secrets(
         &self,
         sandbox_id: &str,
@@ -3730,33 +3731,55 @@ impl KubernetesComputeDriver {
         generations: &[&str],
     ) -> Result<(), KubernetesDriverError> {
         let secrets = Api::<Secret>::namespaced(self.client.clone(), namespace);
-        for component in [
-            SANDBOX_SECRET_COMPONENT,
-            SUPERVISOR_SECRET_COMPONENT,
-            "pair-bootstrap",
-        ] {
-            let selector =
-                format!("openshell.ai/sandbox-id={sandbox_id},openshell.ai/component={component}");
-            let items = secrets
-                .list(&ListParams::default().labels(&selector))
-                .await
-                .map_err(KubernetesDriverError::from_kube)?;
-            for secret in items {
-                let Some(name) = secret.metadata.name else {
-                    continue;
-                };
-                match secrets
-                    .delete(
-                        &name,
-                        &DeleteParams::default().preconditions(Preconditions {
-                            uid: secret.metadata.uid,
-                            resource_version: None,
-                        }),
-                    )
+        if generations.is_empty() {
+            for component in [
+                SANDBOX_SECRET_COMPONENT,
+                SUPERVISOR_SECRET_COMPONENT,
+                "pair-bootstrap",
+            ] {
+                let selector = format!(
+                    "openshell.ai/sandbox-id={sandbox_id},openshell.ai/component={component}"
+                );
+                let items = secrets
+                    .list(&ListParams::default().labels(&selector))
                     .await
-                {
-                    Ok(_) | Err(KubeError::Api(kube::core::ErrorResponse { code: 404, .. })) => {}
-                    Err(error) => return Err(KubernetesDriverError::from_kube(error)),
+                    .map_err(KubernetesDriverError::from_kube)?;
+                for secret in items {
+                    let Some(name) = secret.metadata.name else {
+                        continue;
+                    };
+                    match secrets
+                        .delete(
+                            &name,
+                            &DeleteParams::default().preconditions(Preconditions {
+                                uid: secret.metadata.uid,
+                                resource_version: None,
+                            }),
+                        )
+                        .await
+                    {
+                        Ok(_)
+                        | Err(KubeError::Api(kube::core::ErrorResponse { code: 404, .. })) => {}
+                        Err(error) => return Err(KubernetesDriverError::from_kube(error)),
+                    }
+                }
+            }
+        } else {
+            for generation in generations {
+                let names = SandboxRuntimeNames::for_generation(sandbox_id, generation);
+                let mut generation_secrets =
+                    if self.config.workspace_mode == WorkspaceMode::Managed {
+                        names.image_pull_secrets(self.config.image_pull_secrets.len())
+                    } else {
+                        Vec::new()
+                    };
+                generation_secrets.splice(0..0, [names.sandbox_secret, names.supervisor_secret]);
+                for name in &generation_secrets {
+                    match secrets.delete(name, &DeleteParams::default()).await {
+                        Ok(_)
+                        | Err(KubeError::Api(kube::core::ErrorResponse { code: 404, .. })) => {}
+                        Err(error) => return Err(KubernetesDriverError::from_kube(error)),
+                    }
                 }
             }
         }
